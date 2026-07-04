@@ -35,7 +35,8 @@ try:
 except ImportError:
     HAS_PLOTLY = False
 
-from config import APP_CSS, INDUSTRY_MAP, PLACEHOLDER, TAIWAN_GREEN, TAIWAN_RED
+from config import (INDUSTRY_MAP, PLACEHOLDER, TAIWAN_GREEN, TAIWAN_RED,
+                    THEME_MODES, build_css, plotly_font_color)
 import sj_client as sjc
 import scoring
 import holdings as hld
@@ -46,9 +47,22 @@ from widgets import render_tools
 # ---------------------------------------------------------------- 版面
 st.set_page_config(page_title="股票行情分析儀", layout="wide",
                    initial_sidebar_state="collapsed")
-st.markdown(APP_CSS, unsafe_allow_html=True)
 
-st.title("股票行情分析儀")
+# ---- 外觀模式：淺色 / 深色 / 跟隨系統 ----
+_default_mode = st.session_state.get("theme_choice", "跟隨系統")
+head_l, head_r = st.columns([3, 2])
+with head_r:
+    theme_choice = st.radio(
+        "外觀", list(THEME_MODES.keys()),
+        index=list(THEME_MODES.keys()).index(_default_mode),
+        horizontal=True, label_visibility="collapsed",
+        key="theme_choice")
+theme_mode = THEME_MODES[theme_choice]
+st.markdown(build_css(theme_mode), unsafe_allow_html=True)
+_plotly_font = plotly_font_color(theme_mode)
+
+with head_l:
+    st.title("股票行情分析儀")
 st.caption("模擬模式・純行情讀取（無下單功能）｜紅漲綠跌｜"
            "所有評分、機率與模型觀點為條件計算輸出，僅供研究參考，"
            "不構成投資建議")
@@ -491,7 +505,8 @@ with tab_stock:
                                                hole=0.45))
                         fig.update_layout(
                             height=360, paper_bgcolor="rgba(0,0,0,0)",
-                            font=dict(family="Noto Serif TC"),
+                            font=dict(family="Noto Serif TC",
+                                      color=_plotly_font),
                             margin=dict(l=0, r=0, t=10, b=10))
                         st.plotly_chart(fig, use_container_width=True)
                     else:
@@ -527,7 +542,8 @@ with tab_stock:
                                   xaxis_rangeslider_visible=False,
                                   paper_bgcolor="rgba(0,0,0,0)",
                                   plot_bgcolor="rgba(0,0,0,0)",
-                                  font=dict(family="Noto Serif TC"),
+                                  font=dict(family="Noto Serif TC",
+                                            color=_plotly_font),
                                   margin=dict(l=10, r=10, t=30, b=10),
                                   legend=dict(orientation="h"))
                 st.plotly_chart(fig, use_container_width=True)
