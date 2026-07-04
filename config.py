@@ -63,6 +63,16 @@ div[data-baseweb] input, div[data-baseweb="select"] * {
     font-family: 'Noto Serif TC', 'PingFang TC', serif !important;
 }
 code, pre, .mono { font-family: 'IBM Plex Mono', monospace !important; }
+
+/* Material 圖示字型必須豁免於襯線覆蓋，否則連字失效、
+   會露出 keyboard_arrow_down 之類的原始文字 */
+span[data-testid="stIconMaterial"],
+[data-testid="stExpanderToggleIcon"],
+[class*="material-symbols"], [class*="material-icons"] {
+    font-family: 'Material Symbols Rounded', 'Material Icons' !important;
+    font-variant-ligatures: normal !important;
+    letter-spacing: normal !important;
+}
 div[data-testid="stMetricValue"] {
     font-family: 'IBM Plex Mono', monospace !important;
     font-variant-numeric: tabular-nums;
@@ -222,6 +232,112 @@ a.news-card:hover { border-color: var(--accent); }
 
 /* 主題切換 radio：橫排、靜音 */
 div[data-testid="stRadio"] label p { color: var(--ink); }
+
+/* =====================================================================
+   Streamlit 內建主題全面覆蓋
+   讓本 app 的外觀選擇（淺色/深色/跟隨系統）成為唯一視覺來源，
+   蓋過 Streamlit header 選單或系統偏好套用的內建主題色
+   （預設 primaryColor #ff4b4b 與其深淺底色）。
+   ===================================================================== */
+
+/* 全域文字底色以 tokens 為準 */
+.stApp, .stApp p, .stApp span, .stApp div { color: var(--ink); }
+::placeholder { color: var(--muted) !important; opacity: 1; }
+
+/* 內建 primary 紅（inline style）一律轉為 accent：
+   !important 樣式表可覆蓋 inline style，slider 填色、
+   progress、focus 等皆循此染色 */
+[style*="rgb(255, 75, 75)"] {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: var(--accent-ink) !important;
+}
+
+/* Slider：滑塊、數值、刻度 */
+div[data-baseweb="slider"] [role="slider"] {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+    box-shadow: none !important;
+}
+[data-testid="stSliderThumbValue"] { color: var(--accent) !important; }
+[data-testid="stTickBar"] div { color: var(--muted) !important; }
+
+/* Progress bar */
+[data-testid="stProgress"] > div > div > div {
+    background-color: var(--accent) !important;
+}
+
+/* Checkbox / Radio 選取色 */
+label[data-baseweb="checkbox"]:has(input:checked) > span:first-child {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+}
+label[data-baseweb="checkbox"] > span:first-child {
+    border-color: var(--line) !important;
+    background-color: var(--card) !important;
+}
+label[data-baseweb="radio"] > div:first-child {
+    border-color: var(--line) !important;
+    background-color: var(--card) !important;
+}
+label[data-baseweb="radio"]:has(input:checked) > div:first-child {
+    border-color: var(--accent) !important;
+}
+label[data-baseweb="radio"]:has(input:checked) > div:first-child > div {
+    background-color: var(--accent) !important;
+}
+
+/* 聚焦框線 */
+div[data-baseweb="input"]:focus-within,
+div[data-baseweb="textarea"]:focus-within,
+div[data-baseweb="select"] > div:focus-within {
+    border-color: var(--accent) !important;
+    box-shadow: none !important;
+}
+:focus-visible { outline-color: var(--accent) !important; }
+
+/* Alert（info/success/warning/error）：主題化底色，保留左側語意 */
+div[data-testid="stAlert"] {
+    background-color: var(--card-2) !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+div[data-testid="stAlert"] p, div[data-testid="stAlert"] span,
+div[data-testid="stAlert"] div { color: var(--ink) !important; }
+
+/* Tooltip / Popover 底色 */
+div[data-baseweb="tooltip"],
+div[data-baseweb="popover"] > div {
+    background-color: var(--card) !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--line) !important;
+}
+
+/* 下拉箭頭、清除叉叉等 SVG */
+div[data-baseweb="select"] svg,
+div[data-baseweb="tag"] svg,
+[data-testid="stExpander"] svg {
+    fill: var(--muted) !important;
+    color: var(--muted) !important;
+}
+
+/* NumberInput 的加減按鈕 */
+[data-testid="stNumberInput"] button {
+    background-color: var(--card-2) !important;
+    color: var(--ink) !important;
+    border-color: var(--line) !important;
+}
+
+/* Multiselect 已選 tag 已於前段處理；此處補 hover */
+div[data-baseweb="tag"]:hover { background-color: var(--line) !important; }
+
+/* 捲軸配合主題 */
+.sx-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+.sx-scroll::-webkit-scrollbar-thumb {
+    background: var(--line); border-radius: 8px;
+}
+.sx-scroll::-webkit-scrollbar-track { background: transparent; }
 
 /* 漲跌語意色 */
 .up   { color: #b0524c; font-weight: 600; }
