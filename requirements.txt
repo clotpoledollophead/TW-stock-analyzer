@@ -1,0 +1,5 @@
+shioaji>=1.2
+pandas
+numpy
+plotly
+requests
