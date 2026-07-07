@@ -1,58 +1,85 @@
 # -*- coding: utf-8 -*-
 """給投資人的提醒與建議小工具（教育性質，非投資建議）。"""
 
+import math
+
 import streamlit as st
+
+from sj_client import tick_size
+
+# 永豐金證券費率（牌告）
+FEE_RATE = 0.001425      # 手續費 0.1425%
+MIN_FEE_LOT = 20         # 整股電子下單低消（元）
+MIN_FEE_ODD = 1          # 盤中零股低消（元）
+TAX_STOCK = 0.003        # 證交稅：個股 0.3%
+TAX_ETF = 0.001          # 證交稅：ETF 0.1%
+
+
+def _fee(amount: float, disc: float, qty: int) -> float:
+    """單邊手續費：牌告 0.1425% × 折數，含低消（整股 20 元、零股 1 元）。"""
+    min_fee = MIN_FEE_ODD if qty < 1000 else MIN_FEE_LOT
+    return max(min_fee, amount * FEE_RATE * disc)
 
 
 def render_tools():
-    st.markdown("#### 部位大小計算器（固定風險法）")
-    st.caption("以「單筆交易最多虧總資金的 R%」反推可買張數，"
-               "是風險管理文獻中最常見的 position sizing 方法。")
-    c1, c2 = st.columns(2)
-    capital = c1.number_input("總資金（元）", min_value=0, value=500_000,
-                              step=10_000)
-    risk_pct = c2.number_input("單筆風險上限（%）", min_value=0.1,
-                               max_value=10.0, value=1.0, step=0.1)
-    c3, c4 = st.columns(2)
-    entry = c3.number_input("進場價", min_value=0.0, value=100.0, step=0.5)
-    stop = c4.number_input("停損價", min_value=0.0, value=95.0, step=0.5)
-    if entry > stop > 0:
-        risk_per_share = entry - stop
-        budget = capital * risk_pct / 100
-        shares = int(budget // risk_per_share)
-        lots, odd = divmod(shares, 1000)
-        st.info(f"可承受風險金額 {budget:,.0f} 元 ÷ 每股風險 "
-                f"{risk_per_share:.2f} 元 ≈ **{shares:,} 股**"
-                f"（{lots} 張＋零股 {odd} 股）｜"
-                f"部位市值約 {shares * entry:,.0f} 元"
-                f"（佔資金 {shares * entry / capital:.1%}）")
-        if shares * entry > capital:
-            st.warning("計算出的部位超過總資金——停損距離太近或風險%過高，"
-                       "請縮小部位。")
-    elif stop >= entry:
-        st.warning("停損價需低於進場價。")
+    st.markdown("#### 損益兩平試算（以永豐金證券費率計算）")
+    st.caption("輸入買進價與股數，計算「賣多少錢才能賺回來」——"
+               "含買賣兩邊手續費（牌告 0.1425% × 折數，"
+               "整股低消 20 元、零股低消 1 元）與賣出時的證交稅"
+               "（個股 0.3%、ETF 0.1%）。")
 
-    st.divider()
-    st.markdown("#### 交易成本與回本試算")
-    c5, c6, c7 = st.columns(3)
-    price = c5.number_input("成交價", min_value=0.0, value=100.0, step=0.5,
-                            key="cost_p")
-    qty = c6.number_input("股數", min_value=1, value=1000, step=100)
-    is_etf = c7.toggle("ETF（證交稅 0.1%）", value=False)
-    fee_disc = st.slider("手續費折數（券商折扣）", 0.2, 1.0, 0.6, 0.05,
-                         help="牌告手續費 0.1425%，多數電子下單有折扣")
-    amt = price * qty
-    fee_rate = 0.001425 * fee_disc
-    tax_rate = 0.001 if is_etf else 0.003
-    fee_buy = max(20, amt * fee_rate)
-    fee_sell = max(20, amt * fee_rate)
-    tax = amt * tax_rate
-    total = fee_buy + fee_sell + tax
-    breakeven = total / amt * 100 if amt else 0
-    st.info(f"買進手續費 {fee_buy:,.0f} ＋ 賣出手續費 {fee_sell:,.0f} ＋ "
-            f"證交稅 {tax:,.0f} ＝ {total:,.0f} 元｜"
-            f"股價需上漲約 **{breakeven:.2f}%** 才回本"
-            f"（手續費低消 20 元已計入）")
+    c1, c2, c3 = st.columns(3)
+    buy_price = c1.number_input("買進價（元）", min_value=0.0, value=100.0,
+                                step=0.5)
+    qty = c2.number_input("股數", min_value=1, value=1000, step=100)
+    is_etf = c3.toggle("ETF（證交稅 0.1%）", value=False)
+    disc = st.slider("手續費折數（依個人與營業員談定的方案調整）",
+                     0.20, 1.00, 0.65, 0.05,
+                     help="永豐電子下單依方案有不同折讓；1.0 = 無折扣牌告價")
+
+    if buy_price > 0 and qty > 0:
+        tax_rate = TAX_ETF if is_etf else TAX_STOCK
+        buy_amt = buy_price * qty
+        fee_buy = _fee(buy_amt, disc, qty)
+        total_cost = buy_amt + fee_buy
+
+        # 求 P：P·q − 手續費(P·q) − 稅(P·q) = 總成本
+        # 先假設賣出手續費超過低消：P = 總成本 / (q·(1 − rate·disc − tax))
+        denom = 1 - FEE_RATE * disc - tax_rate
+        p_be = total_cost / (qty * denom)
+        if p_be * qty * FEE_RATE * disc < (MIN_FEE_ODD if qty < 1000
+                                           else MIN_FEE_LOT):
+            # 賣出手續費落在低消區，改用固定手續費解
+            min_fee = MIN_FEE_ODD if qty < 1000 else MIN_FEE_LOT
+            p_be = (total_cost + min_fee) / (qty * (1 - tax_rate))
+
+        # 對齊合法 tick（向上取，保證不虧）
+        t = tick_size(p_be, is_etf)
+        p_be_tick = math.ceil(round(p_be / t, 6)) * t
+
+        sell_amt = p_be_tick * qty
+        fee_sell = _fee(sell_amt, disc, qty)
+        tax = sell_amt * tax_rate
+        pnl = sell_amt - fee_sell - tax - total_cost
+        need_pct = (p_be_tick / buy_price - 1) * 100
+
+        k1, k2, k3 = st.columns(3)
+        k1.metric("損益兩平賣價（tick 對齊）", f"{p_be_tick:,.2f}",
+                  f"+{need_pct:.2f}% 漲幅")
+        k2.metric("理論兩平價", f"{p_be:,.4f}")
+        k3.metric("以兩平價賣出的損益", f"{pnl:+,.0f} 元",
+                  "對齊 tick 後的微幅盈餘" if pnl > 0 else None)
+
+        st.markdown(
+            f"- 買進成本：{buy_amt:,.0f} 元 ＋ 買進手續費 "
+            f"{fee_buy:,.0f} 元 ＝ **{total_cost:,.0f} 元**\n"
+            f"- 以 {p_be_tick:,.2f} 賣出：{sell_amt:,.0f} 元 − 賣出手續費 "
+            f"{fee_sell:,.0f} 元 − 證交稅 {tax:,.0f} 元\n"
+            f"- 摩擦成本合計 {fee_buy + fee_sell + tax:,.0f} 元，"
+            f"約佔買進金額 {(fee_buy + fee_sell + tax) / buy_amt:.3%}")
+        if qty < 1000:
+            st.caption("股數低於 1,000 股，以零股低消 1 元計算；"
+                       "若為多筆成交，實際低消依券商逐筆計收，可能略高。")
 
     st.divider()
     st.markdown("#### 常備提醒")
